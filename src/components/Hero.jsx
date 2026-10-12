@@ -64,7 +64,7 @@ function Hero() {
           </p>
 
           <div className="hero-actions">
-            <a href="/resume.pdf" className="hero-primary-btn" download>
+            <a href="/Manikandan S.pdf" className="hero-primary-btn" download>
               <span>Download Resume</span>
               <Download size={17} />
             </a>
