@@ -102,17 +102,25 @@ function Contact() {
           <p className="ct-eyebrow">
             <span /> 05 — Contact
           </p>
-          <h2 className="ct-title" aria-label="Let's create something remarkable">
-            {["Let's create", 'something remarkable'].map((line, i) => (
-              <span key={i} className={`ct-row ${i === 1 ? 'ct-row--accent' : ''}`}>
-                {line.split('').map((c, j) => (
-                  <span key={j} className="ct-mask">
-                    <span className="ct-char">{c === ' ' ? ' ' : c}</span>
-                  </span>
-                ))}
-              </span>
-            ))}
-          </h2>
+         <h2
+  className="ct-title"
+  aria-label="Let's create something remarkable"
+>
+  {["Let's create", "something remarkable"].map((line, i) => (
+    <span
+      key={i}
+      className={`ct-row ${i === 1 ? "ct-row--accent" : ""}`}
+    >
+      {line.split("").map((c, j) => (
+        <span key={j} className="ct-mask">
+          <span className="ct-char">
+            {c === " " ? "\u00A0" : c}
+          </span>
+        </span>
+      ))}
+    </span>
+  ))}
+</h2>
           <p className="ct-intro">
             Have a website, web app or a bold interface in mind? I’d love to hear about it.
             Drop a message and I’ll get back to you.

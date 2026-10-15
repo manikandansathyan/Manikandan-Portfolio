@@ -3600,23 +3600,17 @@ img {
 
 .ct-title {
   margin: 0;
-
-  max-width: 1050px;
-
-  font-size:
-    clamp(3.6rem, 8vw, 8rem);
-
-  line-height: 0.88;
-
-  letter-spacing: -0.065em;
-
+  font-size: clamp(4rem, 8vw, 8.5rem);
+  line-height: 0.9;
   font-weight: 700;
+  letter-spacing: -0.055em;
 }
 
 .ct-row {
   display: block;
-
-  overflow: hidden;
+  width: max-content;
+  max-width: 100%;
+  white-space: nowrap;
 }
 
 .ct-row--accent {
@@ -3625,13 +3619,12 @@ img {
 
 .ct-mask {
   display: inline-block;
-
   overflow: hidden;
+  vertical-align: top;
 }
 
 .ct-char {
   display: inline-block;
-
   will-change: transform;
 }
 
