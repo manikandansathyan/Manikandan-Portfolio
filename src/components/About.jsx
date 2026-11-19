@@ -36,7 +36,7 @@ const TIMELINE = [
   },
   {
     year: "Jul 2025 — Jan 2026",
-    title: "MEAN Stack Developer Intern",
+    title: "MEA(R)N Stack Developer Intern",
     company: "Luminar Technolab",
     description:
       "Worked across MongoDB, Express, Angular, React and Node.js while building full-stack applications and strengthening frontend development skills.",

@@ -1,5 +1,9 @@
-import React, { useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import gsap from "gsap";
+
+const prefersReducedMotion = () =>
+  typeof window !== "undefined" &&
+  window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
 function ProjectDetails({
   project,
@@ -10,6 +14,14 @@ function ProjectDetails({
   onNext,
 }) {
   const root = useRef(null);
+  const backdropRef = useRef(null);
+  const panelRef = useRef(null);
+  const scrollRef = useRef(null);
+  const coverImgRef = useRef(null);
+  const progressRef = useRef(null);
+  const spotlightRef = useRef(null);
+  const closing = useRef(false);
+  const isFirstRender = useRef(true);
 
   const {
     title,
@@ -27,104 +39,286 @@ function ProjectDetails({
   } = project;
 
   /* =========================================================
+     CLOSE WITH EXIT ANIMATION
+  ========================================================= */
+
+  const handleClose = useCallback(() => {
+    if (closing.current) return;
+    closing.current = true;
+
+    if (prefersReducedMotion()) {
+      onClose();
+      return;
+    }
+
+    gsap
+      .timeline({ onComplete: onClose })
+      .to(panelRef.current, {
+        y: 40,
+        opacity: 0,
+        clipPath: "inset(0% 0% 12% 0% round 28px)",
+        duration: 0.5,
+        ease: "power3.in",
+      })
+      .to(
+        backdropRef.current,
+        { opacity: 0, duration: 0.35, ease: "power2.in" },
+        "-=0.3"
+      );
+  }, [onClose]);
+
+  /* =========================================================
      LOCK PAGE SCROLL + KEYBOARD CONTROLS
   ========================================================= */
 
   useEffect(() => {
-    const previousOverflow =
-      document.body.style.overflow;
-
+    const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
     const handleKeyDown = (event) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-
-      if (event.key === "ArrowRight") {
-        onNext();
-      }
-
-      if (event.key === "ArrowLeft") {
-        onPrev();
-      }
+      if (event.key === "Escape") handleClose();
+      if (event.key === "ArrowRight") onNext();
+      if (event.key === "ArrowLeft") onPrev();
     };
 
-    window.addEventListener(
-      "keydown",
-      handleKeyDown
-    );
+    window.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      document.body.style.overflow =
-        previousOverflow;
-
-      window.removeEventListener(
-        "keydown",
-        handleKeyDown
-      );
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [onClose, onNext, onPrev]);
-
+  }, [handleClose, onNext, onPrev]);
 
   /* =========================================================
-     ENTRANCE ANIMATION
+     PANEL ENTRANCE (once, on mount)
   ========================================================= */
 
   useEffect(() => {
+    if (prefersReducedMotion()) return;
+
     const ctx = gsap.context(() => {
-
-      /* Backdrop */
-
       gsap.fromTo(
-        ".pd-backdrop",
-        {
-          opacity: 0,
-        },
-        {
-          opacity: 1,
-          duration: 0.5,
-          ease: "power2.out",
-        }
+        backdropRef.current,
+        { opacity: 0 },
+        { opacity: 1, duration: 0.6, ease: "power2.out" }
       );
 
-
-      /* Main panel */
-
       gsap.fromTo(
-        ".pd-panel",
+        panelRef.current,
         {
-          yPercent: 8,
+          y: 70,
           opacity: 0,
+          clipPath: "inset(14% 6% 0% 6% round 28px)",
         },
+        {
+          y: 0,
+          opacity: 1,
+          clipPath: "inset(0% 0% 0% 0% round 0px)",
+          duration: 1.1,
+          ease: "expo.out",
+          clearProps: "clipPath",
+        }
+      );
+    }, root);
+
+    return () => ctx.revert();
+  }, []);
+
+  /* =========================================================
+     CONTENT ANIMATION (on mount + every project change)
+  ========================================================= */
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+    if (prefersReducedMotion()) return;
+
+    const delay = isFirstRender.current ? 0.35 : 0;
+    isFirstRender.current = false;
+
+    const ctx = gsap.context(() => {
+      const tl = gsap.timeline({ delay });
+
+      /* Cover image: slow cinematic settle */
+      tl.fromTo(
+        ".pd-cover",
+        { clipPath: "inset(0% 0% 100% 0%)" },
+        {
+          clipPath: "inset(0% 0% 0% 0%)",
+          duration: 1.1,
+          ease: "expo.inOut",
+        },
+        0
+      ).fromTo(
+        coverImgRef.current || ".pd-cover-art",
+        { scale: 1.35 },
+        { scale: 1, duration: 1.6, ease: "expo.out" },
+        0
+      );
+
+      /* Title: masked word-by-word rise */
+      tl.fromTo(
+        ".pd-word",
+        { yPercent: 115, rotate: 4 },
         {
           yPercent: 0,
-          opacity: 1,
-          duration: 0.9,
+          rotate: 0,
+          duration: 1,
           ease: "power4.out",
-        }
+          stagger: 0.07,
+        },
+        0.35
       );
 
-
-      /* Content */
-
-      gsap.from(
-        ".pd-anim",
+      /* Everything else: soft stagger with blur-in */
+      tl.fromTo(
+        ".pd-anim:not(.pd-cover)",
+        { opacity: 0, y: 28, filter: "blur(8px)" },
         {
-          opacity: 0,
-          y: 30,
-          duration: 0.8,
+          opacity: 1,
+          y: 0,
+          filter: "blur(0px)",
+          duration: 0.9,
           ease: "power3.out",
-          stagger: 0.06,
-          delay: 0.2,
-        }
+          stagger: 0.07,
+          clearProps: "filter",
+        },
+        0.45
       );
 
+      /* Highlight dots pop in */
+      tl.fromTo(
+        ".pd-list-dot",
+        { scale: 0 },
+        {
+          scale: 1,
+          duration: 0.6,
+          ease: "back.out(3)",
+          stagger: 0.08,
+        },
+        0.9
+      );
+
+      /* Stack chips cascade */
+      tl.fromTo(
+        ".pd-stack li",
+        { opacity: 0, y: 12, scale: 0.9 },
+        {
+          opacity: 1,
+          y: 0,
+          scale: 1,
+          duration: 0.6,
+          ease: "back.out(1.8)",
+          stagger: 0.05,
+        },
+        0.9
+      );
     }, root);
 
     return () => ctx.revert();
   }, [project.id]);
 
+  /* =========================================================
+     SCROLL: PROGRESS BAR + COVER PARALLAX
+  ========================================================= */
+
+  useEffect(() => {
+    const scroller = scrollRef.current;
+    if (!scroller || prefersReducedMotion()) return;
+
+    const setProgress = gsap.quickSetter(progressRef.current, "scaleX");
+
+    const onScroll = () => {
+      const max = scroller.scrollHeight - scroller.clientHeight;
+      const progress = max > 0 ? scroller.scrollTop / max : 0;
+      setProgress(progress);
+
+      const target = coverImgRef.current;
+      if (target) {
+        gsap.set(target, { y: scroller.scrollTop * 0.25 });
+      }
+    };
+
+    scroller.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+
+    return () => scroller.removeEventListener("scroll", onScroll);
+  }, [project.id]);
+
+  /* =========================================================
+     CURSOR SPOTLIGHT + MAGNETIC BUTTONS
+  ========================================================= */
+
+  useEffect(() => {
+    if (prefersReducedMotion()) return;
+    if (window.matchMedia?.("(hover: none)").matches) return;
+
+    const panel = panelRef.current;
+    const spot = spotlightRef.current;
+    if (!panel || !spot) return;
+
+    /* Spotlight follows the cursor with inertia */
+    const moveX = gsap.quickTo(spot, "x", { duration: 0.8, ease: "power3" });
+    const moveY = gsap.quickTo(spot, "y", { duration: 0.8, ease: "power3" });
+
+    const onMove = (e) => {
+      const rect = panel.getBoundingClientRect();
+      moveX(e.clientX - rect.left);
+      moveY(e.clientY - rect.top);
+    };
+
+    const onEnter = () =>
+      gsap.to(spot, { opacity: 1, duration: 0.6, ease: "power2.out" });
+    const onLeave = () =>
+      gsap.to(spot, { opacity: 0, duration: 0.6, ease: "power2.out" });
+
+    panel.addEventListener("mousemove", onMove);
+    panel.addEventListener("mouseenter", onEnter);
+    panel.addEventListener("mouseleave", onLeave);
+
+    /* Magnetic pull on nav + link buttons */
+    const magnets = panel.querySelectorAll(".pd-nav button, .pd-btn");
+    const cleanups = [];
+
+    magnets.forEach((el) => {
+      const mx = gsap.quickTo(el, "x", { duration: 0.5, ease: "power3" });
+      const my = gsap.quickTo(el, "y", { duration: 0.5, ease: "power3" });
+
+      const move = (e) => {
+        const r = el.getBoundingClientRect();
+        mx((e.clientX - (r.left + r.width / 2)) * 0.3);
+        my((e.clientY - (r.top + r.height / 2)) * 0.3);
+      };
+      const leave = () => {
+        gsap.to(el, {
+          x: 0,
+          y: 0,
+          duration: 0.8,
+          ease: "elastic.out(1, 0.45)",
+        });
+      };
+
+      el.addEventListener("mousemove", move);
+      el.addEventListener("mouseleave", leave);
+      cleanups.push(() => {
+        el.removeEventListener("mousemove", move);
+        el.removeEventListener("mouseleave", leave);
+      });
+    });
+
+    return () => {
+      panel.removeEventListener("mousemove", onMove);
+      panel.removeEventListener("mouseenter", onEnter);
+      panel.removeEventListener("mouseleave", onLeave);
+      cleanups.forEach((fn) => fn());
+    };
+  }, [project.id]);
+
+  /* =========================================================
+     HELPERS
+  ========================================================= */
+
+  /* Split title into masked words for the reveal */
+  const titleWords = (title || "").split(" ");
 
   /* =========================================================
      RENDER
@@ -138,53 +332,79 @@ function ProjectDetails({
       aria-modal="true"
       aria-label={`${title} details`}
     >
-
-      {/* =====================================================
-          BACKDROP
-      ===================================================== */}
+      {/* BACKDROP */}
 
       <div
+        ref={backdropRef}
         className="pd-backdrop"
-        onClick={onClose}
+        onClick={handleClose}
         aria-hidden="true"
+        style={{
+          backdropFilter: "blur(14px) saturate(120%)",
+          WebkitBackdropFilter: "blur(14px) saturate(120%)",
+        }}
       />
 
-
-      {/* =====================================================
-          PANEL
-      ===================================================== */}
+      {/* PANEL */}
 
       <div
+        ref={panelRef}
         className="pd-panel"
         style={{
           "--a1": a1,
           "--a2": a2,
+          willChange: "transform, opacity, clip-path",
         }}
       >
+        {/* SCROLL PROGRESS (accent gradient) */}
 
-        {/* ===================================================
-            TOP BAR
-        =================================================== */}
+        <div
+          ref={progressRef}
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 2,
+            zIndex: 20,
+            transformOrigin: "left center",
+            transform: "scaleX(0)",
+            background: `linear-gradient(90deg, ${a1}, ${a2})`,
+            pointerEvents: "none",
+          }}
+        />
+
+        {/* CURSOR SPOTLIGHT */}
+
+        <div
+          ref={spotlightRef}
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            top: -300,
+            left: -300,
+            width: 600,
+            height: 600,
+            borderRadius: "50%",
+            opacity: 0,
+            zIndex: 0,
+            pointerEvents: "none",
+            background: `radial-gradient(circle, ${a2}26 0%, ${a1}10 40%, transparent 70%)`,
+            willChange: "transform",
+          }}
+        />
+
+        {/* TOP BAR */}
 
         <div className="pd-bar">
-
-          {/* PROJECT COUNT */}
-
           <span className="pd-count">
             {String(index + 1).padStart(2, "0")}
-
             <i>/</i>
-
             {String(total).padStart(2, "0")}
           </span>
 
-
-          {/* NAVIGATION */}
-
           <div className="pd-nav">
-
-            {/* PREVIOUS */}
-
             <button
               type="button"
               onClick={onPrev}
@@ -204,9 +424,6 @@ function ProjectDetails({
                 <path d="M11 6l-6 6 6 6" />
               </svg>
             </button>
-
-
-            {/* NEXT */}
 
             <button
               type="button"
@@ -228,12 +445,9 @@ function ProjectDetails({
               </svg>
             </button>
 
-
-            {/* CLOSE */}
-
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               aria-label="Close"
               className="pd-close"
             >
@@ -251,228 +465,132 @@ function ProjectDetails({
                 <path d="M18 6L6 18" />
               </svg>
             </button>
-
           </div>
-
         </div>
 
+        {/* SCROLLABLE CONTENT */}
 
-        {/* ===================================================
-            SCROLLABLE CONTENT
-        =================================================== */}
+        <div ref={scrollRef} className="pd-scroll" data-lenis-prevent>
+          {/* COVER */}
 
-        <div
-          className="pd-scroll"
-          data-lenis-prevent
-        >
-
-          {/* =================================================
-              PROJECT COVER
-          ================================================= */}
-
-          <div className="pd-cover pd-anim">
-
+          <div className="pd-cover pd-anim" style={{ overflow: "hidden" }}>
             {image ? (
-
               <img
+                ref={coverImgRef}
                 src={image}
                 alt={`${title} project preview`}
                 draggable="false"
+                style={{ willChange: "transform" }}
               />
-
             ) : (
-
               <div className="pd-cover-art">
-
-                <span>
-                  {title?.charAt(0)}
-                </span>
-
+                <span>{title?.charAt(0)}</span>
               </div>
-
             )}
-
           </div>
 
-
-          {/* =================================================
-              PROJECT CONTENT
-          ================================================= */}
+          {/* CONTENT */}
 
           <div className="pd-content">
-
-
-            {/* =================================================
-                MAIN
-            ================================================= */}
+            {/* MAIN */}
 
             <main className="pd-main">
+              <p className="pd-type pd-anim">{type}</p>
 
-              {/* TYPE */}
+              {/* Title with masked word reveal */}
 
-              <p className="pd-type pd-anim">
-                {type}
-              </p>
-
-
-              {/* TITLE */}
-
-              <h3 className="pd-title pd-anim">
-                {title}
+              <h3 className="pd-title" aria-label={title}>
+                {titleWords.map((word, i) => (
+                  <span
+                    key={`${word}-${i}`}
+                    aria-hidden="true"
+                    style={{
+                      display: "inline-block",
+                      overflow: "hidden",
+                      verticalAlign: "top",
+                      paddingBottom: "0.12em",
+                      marginBottom: "-0.12em",
+                    }}
+                  >
+                    <span
+                      className="pd-word"
+                      style={{ display: "inline-block", willChange: "transform" }}
+                    >
+                      {word}
+                      {i < titleWords.length - 1 ? "\u00A0" : ""}
+                    </span>
+                  </span>
+                ))}
               </h3>
 
+              <p className="pd-tagline pd-anim">{tagline}</p>
 
-              {/* TAGLINE */}
+              <p className="pd-desc pd-anim">{description}</p>
 
-              <p className="pd-tagline pd-anim">
-                {tagline}
-              </p>
-
-
-              {/* DESCRIPTION */}
-
-              <p className="pd-desc pd-anim">
-                {description}
-              </p>
-
-
-              {/* HIGHLIGHTS */}
-
-              <h4 className="pd-sub pd-anim">
-                Highlights
-              </h4>
-
+              <h4 className="pd-sub pd-anim">Highlights</h4>
 
               <ul className="pd-list">
-
-                {highlights?.map(
-                  (highlight, highlightIndex) => (
-
-                    <li
-                      key={`${highlight}-${highlightIndex}`}
-                      className="pd-anim"
-                    >
-
-                      <span className="pd-list-dot" />
-
-                      <span>
-                        {highlight}
-                      </span>
-
-                    </li>
-
-                  )
-                )}
-
+                {highlights?.map((highlight, highlightIndex) => (
+                  <li
+                    key={`${highlight}-${highlightIndex}`}
+                    className="pd-anim"
+                  >
+                    <span className="pd-list-dot" />
+                    <span>{highlight}</span>
+                  </li>
+                ))}
               </ul>
-
             </main>
 
-
-            {/* =================================================
-                SIDE INFORMATION
-            ================================================= */}
+            {/* SIDE */}
 
             <aside className="pd-side">
-
-
-              {/* ROLE */}
-
               <div className="pd-side-block pd-anim">
-
-                <span className="pd-label">
-                  Role
-                </span>
-
-                <p>
-                  {role}
-                </p>
-
+                <span className="pd-label">Role</span>
+                <p>{role}</p>
               </div>
 
-
-              {/* STACK */}
-
               <div className="pd-side-block pd-anim">
-
-                <span className="pd-label">
-                  Stack
-                </span>
+                <span className="pd-label">Stack</span>
 
                 <ul className="pd-stack">
-
-                  {stack?.map(
-                    (technology) => (
-
-                      <li key={technology}>
-                        {technology}
-                      </li>
-
-                    )
-                  )}
-
+                  {stack?.map((technology) => (
+                    <li key={technology}>{technology}</li>
+                  ))}
                 </ul>
-
               </div>
 
-
-              {/* LINKS */}
-
               {(live || code) && (
-
                 <div className="pd-links pd-anim">
-
                   {live && (
-
                     <a
                       href={live}
                       target="_blank"
                       rel="noreferrer"
                       className="pd-btn pd-btn--accent"
                     >
-                      <span>
-                        Live Site
-                      </span>
-
-                      <span>
-                        ↗
-                      </span>
+                      <span>Live Site</span>
+                      <span>↗</span>
                     </a>
-
                   )}
 
-
                   {code && (
-
                     <a
                       href={code}
                       target="_blank"
                       rel="noreferrer"
                       className="pd-btn pd-btn--ghost"
                     >
-                      <span>
-                        Source Code
-                      </span>
-
-                      <span>
-                        ↗
-                      </span>
+                      <span>Source Code</span>
+                      <span>↗</span>
                     </a>
-
                   )}
-
                 </div>
-
               )}
-
             </aside>
-
           </div>
-
         </div>
-
       </div>
-
     </div>
   );
 }

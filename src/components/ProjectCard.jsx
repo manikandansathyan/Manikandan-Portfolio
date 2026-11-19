@@ -1,114 +1,70 @@
-import React from "react";
-
-/**
- * Single project card
- *
- * Props:
- * - project
- * - index
- * - onOpen
- */
+import React, { useEffect, useRef, useState } from "react";
 
 function ProjectCard({ project, index, onOpen }) {
-  const {
-    title,
-    tagline,
-    type,
-    stack,
-    image,
-    a1,
-    a2,
-  } = project;
+  const { title, tagline, type, stack, image, a1, a2 } = project;
 
-  /* =========================================================
-     CURSOR TILT
-  ========================================================= */
+  const cardRef = useRef(null);
+  const frame = useRef(0);
+  const [visible, setVisible] = useState(false);
+
+  /* Reveal once when the card scrolls into view */
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+
+    if (!("IntersectionObserver" in window)) {
+      setVisible(true);
+      return;
+    }
+
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          io.disconnect();
+        }
+      },
+      { threshold: 0.15 }
+    );
+
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  useEffect(() => () => cancelAnimationFrame(frame.current), []);
 
   const handleMouseMove = (e) => {
+    if (e.pointerType === "touch") return;
     const card = e.currentTarget;
+    const { clientX, clientY } = e;
 
-    const rect = card.getBoundingClientRect();
+    cancelAnimationFrame(frame.current);
+    frame.current = requestAnimationFrame(() => {
+      const rect = card.getBoundingClientRect();
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
 
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    const rotateX =
-      ((y / rect.height) - 0.5) * -4;
-
-    const rotateY =
-      ((x / rect.width) - 0.5) * 4;
-
-    card.style.setProperty(
-      "--mx",
-      `${x}px`
-    );
-
-    card.style.setProperty(
-      "--my",
-      `${y}px`
-    );
-
-    card.style.setProperty(
-      "--rx",
-      `${rotateX}deg`
-    );
-
-    card.style.setProperty(
-      "--ry",
-      `${rotateY}deg`
-    );
+      card.style.setProperty("--mx", `${x}px`);
+      card.style.setProperty("--my", `${y}px`);
+      card.style.setProperty("--rx", `${(y / rect.height - 0.5) * -4}deg`);
+      card.style.setProperty("--ry", `${(x / rect.width - 0.5) * 4}deg`);
+    });
   };
-
-
-  /* =========================================================
-     RESET TILT
-  ========================================================= */
 
   const handleMouseLeave = (e) => {
     const card = e.currentTarget;
+    cancelAnimationFrame(frame.current);
 
-    card.style.setProperty(
-      "--rx",
-      "0deg"
-    );
-
-    card.style.setProperty(
-      "--ry",
-      "0deg"
-    );
-
-    card.style.setProperty(
-      "--mx",
-      "50%"
-    );
-
-    card.style.setProperty(
-      "--my",
-      "50%"
-    );
+    card.style.setProperty("--rx", "0deg");
+    card.style.setProperty("--ry", "0deg");
+    card.style.setProperty("--mx", "50%");
+    card.style.setProperty("--my", "50%");
   };
-
-
-  /* =========================================================
-     KEYBOARD
-  ========================================================= */
-
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      onOpen();
-    }
-  };
-
 
   return (
     <article
-      className={`proj-card ${
-        index % 3 === 1
-          ? "proj-card--offset"
-          : ""
-      }`}
-
+      ref={cardRef}
+      className={`proj-card ${visible ? "is-visible" : ""}`}
       style={{
         "--a1": a1,
         "--a2": a2,
@@ -116,28 +72,19 @@ function ProjectCard({ project, index, onOpen }) {
         "--my": "50%",
         "--rx": "0deg",
         "--ry": "0deg",
+        "--delay": `${(index % 3) * 110}ms`,
       }}
-
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
-
       <button
         type="button"
         className="proj-card-btn"
         onClick={onOpen}
-        onKeyDown={handleKeyDown}
         aria-label={`View details of ${title}`}
       >
-
-        {/* =================================================
-            PROJECT COVER
-        ================================================= */}
-
+        {/* COVER */}
         <div className="proj-cover">
-
-          {/* IMAGE */}
-
           {image ? (
             <img
               src={image}
@@ -146,125 +93,52 @@ function ProjectCard({ project, index, onOpen }) {
               draggable="false"
             />
           ) : (
-
-            /* =============================================
-               FALLBACK PROJECT ART
-            ============================================= */
-
             <div className="proj-cover-art">
-
-              <span className="proj-cover-mono">
-                {title?.charAt(0)}
-              </span>
-
+              <span className="proj-cover-mono">{title?.charAt(0)}</span>
               <span className="proj-cover-ring" />
-
             </div>
           )}
 
-
-          {/* DARK GRADIENT */}
-
           <span className="proj-cover-shade" />
-
-
-          {/* CURSOR SPOTLIGHT */}
-
           <span className="proj-cover-spotlight" />
+          <span className="proj-cover-sheen" />
 
+          <span className="proj-badge">{type}</span>
 
-          {/* PROJECT TYPE */}
-
-          <span className="proj-badge">
-            {type}
-          </span>
-
-
-          {/* OPEN ICON */}
-
-          <span
-            className="proj-open"
-            aria-hidden="true"
-          >
-
+          <span className="proj-open" aria-hidden="true">
             <svg
-              width="20"
-              height="20"
+              width="18"
+              height="18"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              strokeWidth="1.3"
+              strokeWidth="1.4"
               strokeLinecap="round"
               strokeLinejoin="round"
             >
-
               <path d="M7 17L17 7" />
-
               <path d="M9 7h8v8" />
-
             </svg>
-
           </span>
-
         </div>
 
-
-        {/* =================================================
-            PROJECT META
-        ================================================= */}
-
+        {/* META */}
         <div className="proj-meta">
-
-          {/* TOP ROW */}
-
           <div className="proj-meta-top">
-
-            <span className="proj-no">
-              {String(index + 1).padStart(2, "0")}
-            </span>
-
-            <h3>
-              {title}
-            </h3>
-
+            <span className="proj-no">{String(index + 1).padStart(2, "0")}</span>
+            <h3>{title}</h3>
           </div>
 
-
-          {/* TAGLINE */}
-
-          <p className="proj-tagline">
-            {tagline}
-          </p>
-
-
-          {/* STACK */}
+          <p className="proj-tagline">{tagline}</p>
 
           <ul className="proj-stack">
-
-            {stack
-              ?.slice(0, 3)
-              .map((technology) => (
-
-                <li key={technology}>
-                  {technology}
-                </li>
-
-              ))}
-
-            {stack?.length > 3 && (
-
-              <li>
-                +{stack.length - 3}
-              </li>
-
-            )}
-
+            {stack?.slice(0, 3).map((technology) => (
+              <li key={technology}>{technology}</li>
+            ))}
+            {stack?.length > 3 && <li>+{stack.length - 3}</li>}
           </ul>
-
         </div>
-
       </button>
-
     </article>
   );
 }

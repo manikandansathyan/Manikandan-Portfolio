@@ -4,120 +4,54 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 
 import ProjectCard from "./ProjectCard";
 import ProjectDetails from "../pages/ProjectDetails";
+import { PROJECTS } from "../data/Projects";
 
 gsap.registerPlugin(ScrollTrigger);
 
-export const PROJECTS = [
-  {
-    id: "ployde",
-    title: "Ployde",
-    tagline: "An editorial studio site with buttery motion.",
-    type: "Website",
-    role: "Frontend Developer",
+const FILTERS = ["All", "Website", "Web App"];
 
-    description:
-      "A studio / agency website built with an editorial layout, smooth scrolling and carefully choreographed entrance animations.",
+const prefersReducedMotion = () =>
+  typeof window !== "undefined" &&
+  window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
-    highlights: [
-      "Frosted-glass fixed header with GSAP entrance and mobile menu",
-      "Video hero and editorial two-column About",
-      "Scroll-triggered staggered CTA and services grid",
-      "Lenis smooth scroll synced with ScrollTrigger",
-    ],
-
-    stack: [
-      "React 19",
-      "Vite",
-      "Tailwind v4",
-      "GSAP",
-      "Lenis",
-    ],
-
-    a1: "#8E8AF5",
-    a2: "#10101C",
-
-    image: "",
-    live: "",
-    code: "",
-  },
-
-  {
-    id: "maison",
-    title: "Maison",
-    tagline: "A cinematic brand reveal for a dining house.",
-    type: "Website",
-    role: "Frontend Developer",
-
-    description:
-      "A website for a dining brand, opening with a film-style preloader: a champagne line monogram on matte black dissolving into the wordmark.",
-
-    highlights: [
-      "HomeLoader preloader with gliding rim light and slow push-in",
-      "Monogram dissolves into a wide-spaced serif wordmark",
-      "Film-grain finish on deep matte black",
-    ],
-
-    stack: [
-      "React",
-      "GSAP",
-      "Tailwind CSS",
-    ],
-
-    a1: "#E8D8B8",
-    a2: "#0A0A0A",
-
-    image: "",
-    live: "",
-    code: "",
-  },
-];
-
-const FILTERS = [
-  "All",
-  "Website",
-  "Web App",
-];
+const hasHover = () =>
+  typeof window !== "undefined" &&
+  !window.matchMedia?.("(hover: none)").matches;
 
 function Projects() {
   const root = useRef(null);
+  const countRef = useRef(null);
 
   const [filter, setFilter] = useState("All");
   const [activeId, setActiveId] = useState(null);
+  const [visibleCount, setVisibleCount] = useState(3);
 
   const list = useMemo(() => {
-    if (filter === "All") {
-      return PROJECTS;
-    }
-
-    return PROJECTS.filter(
-      (project) => project.type === filter
-    );
+    if (filter === "All") return PROJECTS;
+    return PROJECTS.filter((project) => project.type === filter);
   }, [filter]);
 
-  const activeIndex = list.findIndex(
-    (project) => project.id === activeId
-  );
+  const visibleProjects = list.slice(0, visibleCount);
+  const hasMore = visibleCount < list.length;
 
-  const active =
-    activeIndex >= 0
-      ? list[activeIndex]
-      : null;
+  const activeIndex = list.findIndex((project) => project.id === activeId);
+  const active = activeIndex >= 0 ? list[activeIndex] : null;
 
   /* ========================================================
-     INTRO ANIMATION
+     INTRO ANIMATION (once)
   ======================================================== */
 
   useEffect(() => {
+    if (prefersReducedMotion()) return;
+
     const ctx = gsap.context(() => {
-      const titleChars =
-        gsap.utils.toArray(".proj-char");
-
-      gsap.from(titleChars, {
-        yPercent: 115,
-        duration: 1.2,
+      /* Title: masked characters rise with a slight tilt */
+      gsap.from(gsap.utils.toArray(".proj-char"), {
+        yPercent: 118,
+        rotate: 6,
+        duration: 1.3,
         ease: "power4.out",
-        stagger: 0.04,
-
+        stagger: { each: 0.035, from: "start" },
         scrollTrigger: {
           trigger: ".proj-title",
           start: "top 85%",
@@ -125,67 +59,193 @@ function Projects() {
         },
       });
 
-      gsap.from(
-        ".proj-eyebrow, .proj-intro, .proj-filters",
-        {
-          opacity: 0,
-          y: 30,
-          duration: 0.9,
-          ease: "power3.out",
-          stagger: 0.12,
+      /* Eyebrow line draws itself */
+      gsap.from(".proj-eyebrow-line", {
+        scaleX: 0,
+        transformOrigin: "left center",
+        duration: 1.1,
+        ease: "expo.out",
+        scrollTrigger: {
+          trigger: ".proj-head",
+          start: "top 85%",
+          once: true,
+        },
+      });
 
+      /* Eyebrow, intro and filters: soft blur-in */
+      gsap.from(".proj-eyebrow, .proj-intro, .proj-filters", {
+        opacity: 0,
+        y: 30,
+        filter: "blur(8px)",
+        duration: 1,
+        ease: "power3.out",
+        stagger: 0.12,
+        clearProps: "filter",
+        scrollTrigger: {
+          trigger: ".proj-head",
+          start: "top 85%",
+          once: true,
+        },
+      });
+
+      /* Count-up for the project total */
+      if (countRef.current) {
+        const counter = { value: 0 };
+        gsap.to(counter, {
+          value: PROJECTS.length,
+          duration: 1.6,
+          ease: "power2.out",
+          onUpdate: () => {
+            if (countRef.current) {
+              countRef.current.textContent = Math.round(counter.value);
+            }
+          },
           scrollTrigger: {
             trigger: ".proj-head",
             start: "top 85%",
             once: true,
           },
-        }
-      );
+        });
+      }
+
+      /* Background orbs drift at different speeds while scrolling */
+      gsap.to(".proj-orb:not(.proj-orb-two)", {
+        yPercent: -25,
+        ease: "none",
+        scrollTrigger: {
+          trigger: root.current,
+          start: "top bottom",
+          end: "bottom top",
+          scrub: 1.2,
+        },
+      });
+
+      gsap.to(".proj-orb-two", {
+        yPercent: 30,
+        ease: "none",
+        scrollTrigger: {
+          trigger: root.current,
+          start: "top bottom",
+          end: "bottom top",
+          scrub: 1.6,
+        },
+      });
+
+      /* Gentle bob on the Show More arrow */
+      gsap.to(".proj-load-more-icon svg", {
+        y: 4,
+        duration: 0.9,
+        ease: "sine.inOut",
+        repeat: -1,
+        yoyo: true,
+      });
     }, root);
 
     return () => ctx.revert();
   }, []);
 
   /* ========================================================
-     CARD ANIMATION
+     CARDS
+     Each ProjectCard reveals itself (IntersectionObserver),
+     including newly loaded cards and cards after a filter
+     change, so only ScrollTrigger needs a refresh here.
   ======================================================== */
 
   useEffect(() => {
-    const ctx = gsap.context(() => {
-      const cards =
-        gsap.utils.toArray(".proj-card");
+    const id = requestAnimationFrame(() => ScrollTrigger.refresh());
+    return () => cancelAnimationFrame(id);
+  }, [filter, visibleCount]);
 
-      if (!cards.length) return;
+  /* ========================================================
+     MAGNETIC FILTERS + SHOW MORE
+  ======================================================== */
 
-      gsap.fromTo(
-        cards,
-        {
-          opacity: 0,
-          y: 60,
-        },
-        {
-          opacity: 1,
+  useEffect(() => {
+    if (prefersReducedMotion() || !hasHover() || !root.current) return;
+
+    const targets = root.current.querySelectorAll(
+      ".proj-filters button, .proj-load-more"
+    );
+    const cleanups = [];
+
+    targets.forEach((el) => {
+      const strength = el.classList.contains("proj-load-more") ? 0.25 : 0.3;
+      const mx = gsap.quickTo(el, "x", { duration: 0.5, ease: "power3" });
+      const my = gsap.quickTo(el, "y", { duration: 0.5, ease: "power3" });
+
+      const move = (e) => {
+        const r = el.getBoundingClientRect();
+        mx((e.clientX - (r.left + r.width / 2)) * strength);
+        my((e.clientY - (r.top + r.height / 2)) * strength);
+      };
+
+      const leave = () =>
+        gsap.to(el, {
+          x: 0,
           y: 0,
-
           duration: 0.9,
+          ease: "elastic.out(1, 0.4)",
+        });
 
-          ease: "power3.out",
+      el.addEventListener("mousemove", move);
+      el.addEventListener("mouseleave", leave);
 
-          stagger: 0.1,
+      cleanups.push(() => {
+        el.removeEventListener("mousemove", move);
+        el.removeEventListener("mouseleave", leave);
+        gsap.set(el, { clearProps: "x,y" });
+      });
+    });
 
-          scrollTrigger: {
-            trigger: ".proj-grid",
-            start: "top 85%",
-            once: true,
-          },
-        }
-      );
-    }, root);
+    return () => cleanups.forEach((fn) => fn());
+  }, [hasMore]);
 
-    ScrollTrigger.refresh();
+  /* ========================================================
+     EMPTY STATE
+  ======================================================== */
 
-    return () => ctx.revert();
-  }, [filter]);
+  useEffect(() => {
+    if (list.length || prefersReducedMotion()) return;
+
+    const el = root.current?.querySelector(".proj-empty");
+    if (!el) return;
+
+    gsap.fromTo(
+      el,
+      { opacity: 0, y: 20 },
+      { opacity: 1, y: 0, duration: 0.7, ease: "power3.out" }
+    );
+  }, [list.length]);
+
+  /* ========================================================
+     FILTER CHANGE (grid fades out, then swaps)
+  ======================================================== */
+
+  const handleFilter = (filterOption) => {
+    if (filterOption === filter) return;
+
+    const swap = () => {
+      setFilter(filterOption);
+      setVisibleCount(3);
+      setActiveId(null);
+    };
+
+    const grid = root.current?.querySelector(".proj-grid");
+
+    if (!grid || prefersReducedMotion()) {
+      swap();
+      return;
+    }
+
+    gsap.to(grid, {
+      opacity: 0,
+      y: 16,
+      duration: 0.28,
+      ease: "power2.in",
+      overwrite: true,
+      onComplete: swap,
+    });
+  };
 
   /* ========================================================
      PROJECT NAVIGATION
@@ -195,209 +255,139 @@ function Projects() {
     if (!list.length) return;
 
     const nextIndex =
-      (activeIndex + direction + list.length) %
-      list.length;
+      (activeIndex + direction + list.length) % list.length;
 
     setActiveId(list[nextIndex].id);
   };
 
   return (
-    <section
-      ref={root}
-      className="proj"
-      id="projects"
-    >
-
-      {/* ====================================================
-          BACKGROUND GLOW
-      ==================================================== */}
+    <section ref={root} className="proj" id="projects">
+      {/* BACKGROUND GLOW */}
 
       <div className="proj-orb" />
-
       <div className="proj-orb proj-orb-two" />
 
-
-      {/* ====================================================
-          CONTENT
-      ==================================================== */}
+      {/* CONTENT */}
 
       <div className="proj-wrap">
-
-        {/* ==================================================
-            HEADER
-        ================================================== */}
+        {/* HEADER */}
 
         <div className="proj-head">
-
           <p className="proj-eyebrow">
             <span className="proj-eyebrow-line" />
-
             04 — SELECTED WORK
           </p>
 
-
           {/* TITLE */}
 
-          <h2
-            className="proj-title"
-            aria-label="Projects I'm proud of"
-          >
-
-            {[
-              "Projects",
-              "I'm proud of",
-            ].map((line, index) => (
-
+          <h2 className="proj-title" aria-label="Projects I'm proud of">
+            {["Projects", "I'm proud of"].map((line, index) => (
               <span
                 key={index}
-                className={`proj-row ${
-                  index === 1
-                    ? "proj-row--accent"
-                    : ""
-                }`}
+                className={`proj-row ${index === 1 ? "proj-row--accent" : ""}`}
               >
-
-                {line.split("").map(
-                  (char, charIndex) => (
-
-                    <span
-                      key={charIndex}
-                      className="proj-mask"
-                    >
-
-                      <span className="proj-char">
-                        {char === " "
-                          ? "\u00A0"
-                          : char}
-                      </span>
-
+                {line.split("").map((char, charIndex) => (
+                  <span key={charIndex} className="proj-mask">
+                    <span className="proj-char">
+                      {char === " " ? "\u00A0" : char}
                     </span>
-                  )
-                )}
-
+                  </span>
+                ))}
               </span>
             ))}
-
           </h2>
-
 
           {/* INTRO + FILTERS */}
 
           <div className="proj-head-row">
-
             <p className="proj-intro">
-              {PROJECTS.length} builds across
-              luxury websites and enterprise web
-              apps — each one crafted to feel as
-              good as it works.
+              <span ref={countRef}>{PROJECTS.length}</span> builds across
+              luxury websites and enterprise web apps — each one crafted to
+              feel as good as it works.
             </p>
-
-
-            {/* FILTERS */}
 
             <div
               className="proj-filters"
               role="tablist"
               aria-label="Filter projects"
             >
-
               {FILTERS.map((filterOption) => (
-
                 <button
                   key={filterOption}
                   role="tab"
-                  aria-selected={
-                    filter === filterOption
-                  }
-                  className={
-                    filter === filterOption
-                      ? "is-active"
-                      : ""
-                  }
-                  onClick={() =>
-                    setFilter(filterOption)
-                  }
+                  aria-selected={filter === filterOption}
+                  className={filter === filterOption ? "is-active" : ""}
+                  onClick={() => handleFilter(filterOption)}
                 >
                   {filterOption}
                 </button>
-
               ))}
-
             </div>
-
           </div>
-
         </div>
 
+        {/* PROJECT GRID */}
 
-        {/* ==================================================
-            PROJECT GRID
-        ================================================== */}
-
-        <div
-          className="proj-grid"
-          key={filter}
-        >
-
-          {list.map((project, index) => (
-
+        <div className="proj-grid" key={filter}>
+          {visibleProjects.map((project, index) => (
             <ProjectCard
               key={project.id}
               project={project}
               index={index}
-              onOpen={() =>
-                setActiveId(project.id)
-              }
+              onOpen={() => setActiveId(project.id)}
             />
-
           ))}
-
         </div>
 
+        {hasMore && (
+          <button
+            className="proj-load-more"
+            onClick={() =>
+              setVisibleCount((prev) => Math.min(prev + 3, list.length))
+            }
+            aria-label="Show more projects"
+          >
+            <span className="proj-load-more-text">SHOW MORE</span>
 
-        {/* ==================================================
-            EMPTY STATE
-        ================================================== */}
-
-        {!list.length && (
-
-          <div className="proj-empty">
-
-            <span>NO PROJECTS</span>
-
-          </div>
-
+            <span className="proj-load-more-icon">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M12 5v14" />
+                <path d="m19 12-7 7-7-7" />
+              </svg>
+            </span>
+          </button>
         )}
 
+        {/* EMPTY STATE */}
+
+        {!list.length && (
+          <div className="proj-empty">
+            <span>NO PROJECTS</span>
+          </div>
+        )}
       </div>
 
-
-      {/* ====================================================
-          PROJECT DETAILS
-      ==================================================== */}
+      {/* PROJECT DETAILS */}
 
       {active && (
-
         <ProjectDetails
           project={active}
           index={activeIndex}
           total={list.length}
-
-          onClose={() =>
-            setActiveId(null)
-          }
-
-          onPrev={() =>
-            step(-1)
-          }
-
-          onNext={() =>
-            step(1)
-          }
+          onClose={() => setActiveId(null)}
+          onPrev={() => step(-1)}
+          onNext={() => step(1)}
         />
-
       )}
-
     </section>
   );
 }
